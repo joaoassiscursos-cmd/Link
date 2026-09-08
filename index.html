@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EncurtaLink - Encurte seus links com analytics</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+    <link rel="stylesheet" href="style.css" />
+    
+    <style>
+        /* Estilos do modal de login */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--gray-900);
+            border-radius: var(--radius);
+            padding: 40px;
+            max-width: 440px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            animation: slideUp 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            color: var(--gray-600);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .modal-close:hover {
+            color: var(--white);
+        }
+
+        .modal h2 {
+            color: var(--white);
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+
+        .modal .subtitle {
+            color: var(--gray-400);
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--gray-400);
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--gray-800);
+            border-radius: 10px;
+            background: var(--dark);
+            color: var(--white);
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            transition: var(--transition);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(108, 60, 225, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: var(--gray-600);
+        }
+
+        .modal .btn {
+            width: 100%;
+            justify-content: center;
+            padding: 14px;
+            font-size: 1rem;
+            margin-top: 8px;
+        }
+
+        .modal .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal .switch-auth {
+            text-align: center;
+            margin-top: 16px;
+            color: var(--gray-400);
+            font-size: 0.9rem;
+        }
+
+        .modal .switch-auth a {
+            color: var(--primary-light);
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .modal .switch-auth a:hover {
+            color: var(--white);
+        }
+
+        .modal .error-msg {
+            color: #ef4444;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .modal .error-msg.show {
+            display: block;
+        }
+
+        .modal .success-msg {
+            color: #10b981;
+            font-size: 0.85rem;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .modal .success-msg.show {
+            display: block;
+        }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .password-toggle input {
+            padding-right: 48px;
+        }
+
+        .password-toggle .toggle-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--gray-600);
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        .password-toggle .toggle-btn:hover {
+            color: var(--white);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .btn-google {
+            background: rgba(255,255,255,0.05);
+            color: var(--white);
+            border: 2px solid var(--gray-700);
+            margin-top: 8px;
+        }
+
+        .btn-google:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: var(--gray-600);
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 20px 0;
+            color: var(--gray-600);
+            font-size: 0.85rem;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--gray-800);
+        }
+
+        @media (max-width: 480px) {
+            .modal {
+                padding: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <nav class="navbar">
+                <div class="logo">
+                    <i class="fas fa-link"></i>
+                    <span>Encurta<span>Link</span></span>
+                </div>
+                <div class="nav-actions">
+                    <a href="#features" class="nav-link">Recursos</a>
+                    <a href="#pricing" class="nav-link">Preços</a>
+                    <button id="btnAbrirLogin" class="btn btn-outline">Entrar</button>
+                    <button id="btnAbrirCadastro" class="btn btn-primary">Começar Grátis</button>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <span class="badge">🔥 Lançamento</span>
+                    <h1>Encurte seus links e <br /><span>ganhe insights</span> poderosos</h1>
+                    <p>
+                        Crie links curtos, rastreie cliques em tempo real e descubra 
+                        quem está acessando seus conteúdos. Tudo simples e gratuito.
+                    </p>
+                    <div class="hero-buttons">
+                        <button id="heroRegister" class="btn btn-primary btn-lg">
+                            <i class="fas fa-rocket"></i> Começar Agora
+                        </button>
+                        <a href="#features" class="btn btn-outline btn-lg">
+                            <i class="fas fa-play"></i> Ver Demo
+                        </a>
+                    </div>
+                </div>
+                <div class="hero-image">
+                    <div class="mockup">
+                        <div class="mockup-header">
+                            <div class="dot red"></div>
+                            <div class="dot yellow"></div>
+                            <div class="dot green"></div>
+                            <span>EncurtaLink</span>
+                        </div>
+                        <div class="mockup-body">
+                            <div class="mockup-url">
+                                <input type="text" value="https://meulink.com/abc123" readonly />
+                                <button><i class="fas fa-copy"></i></button>
+                            </div>
+                            <div class="mockup-stats">
+                                <div class="stat">
+                                    <span class="stat-value">1.247</span>
+                                    <span class="stat-label">Cliques</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-value">42</span>
+                                    <span class="stat-label">Cidades</span>
+                                </div>
+                                <div class="stat">
+                                    <span class="stat-value">15</span>
+                                    <span class="stat-label">Países</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="features">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge">Recursos</span>
+                <h2>Tudo que você precisa em um só lugar</h2>
+                <p>Gerencie, encurte e analise seus links com ferramentas profissionais</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-scissors"></i></div>
+                    <h3>Encurtamento Rápido</h3>
+                    <p>Crie links curtos em segundos com nosso gerador automático de códigos</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                    <h3>Analytics em Tempo Real</h3>
+                    <p>Veja quem clicou, de onde, em qual dispositivo e horário</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-qrcode"></i></div>
+                    <h3>QR Code Dinâmico</h3>
+                    <p>Gere QR Codes para seus links e compartilhe em materiais físicos</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-shield-alt"></i></div>
+                    <h3>Segurança e Confiabilidade</h3>
+                    <p>Links seguros com proteção contra spam e conteúdo malicioso</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-users"></i></div>
+                    <h3>Compartilhamento em Equipe</h3>
+                    <p>Gerencie links com sua equipe e veja métricas consolidadas</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
+                    <h3>Responsivo e Mobile</h3>
+                    <p>Acesse seu dashboard de qualquer dispositivo, a qualquer hora</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section id="pricing" class="pricing">
+        <div class="container">
+            <div class="section-header">
+                <span class="badge">Preços</span>
+                <h2>Escolha o plano ideal</h2>
+                <p>Comece grátis e evolua conforme sua necessidade</p>
+            </div>
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Gratuito</h3>
+                        <div class="price">R$ 0 <span>/mês</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> 100 links ativos</li>
+                        <li><i class="fas fa-check"></i> Analytics 7 dias</li>
+                        <li><i class="fas fa-check"></i> QR Code básico</li>
+                        <li><i class="fas fa-times"></i> Links personalizados</li>
+                        <li><i class="fas fa-times"></i> Suporte prioritário</li>
+                    </ul>
+                    <button class="btn btn-outline btn-block btn-cadastrar">Começar Grátis</button>
+                </div>
+
+                <div class="pricing-card popular">
+                    <div class="popular-badge">Mais Popular</div>
+                    <div class="pricing-header">
+                        <h3>Pro</h3>
+                        <div class="price">R$ 29 <span>/mês</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> Links ilimitados</li>
+                        <li><i class="fas fa-check"></i> Analytics 1 ano</li>
+                        <li><i class="fas fa-check"></i> QR Code personalizado</li>
+                        <li><i class="fas fa-check"></i> Links personalizados</li>
+                        <li><i class="fas fa-check"></i> Suporte prioritário</li>
+                    </ul>
+                    <button class="btn btn-primary btn-block btn-cadastrar">Assinar Agora</button>
+                </div>
+
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <h3>Empresarial</h3>
+                        <div class="price">R$ 97 <span>/mês</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li><i class="fas fa-check"></i> Tudo do Pro</li>
+                        <li><i class="fas fa-check"></i> Times (até 10 usuários)</li>
+                        <li><i class="fas fa-check"></i> Domínio personalizado</li>
+                        <li><i class="fas fa-check"></i> API dedicada</li>
+                        <li><i class="fas fa-check"></i> Suporte 24/7</li>
+                    </ul>
+                    <button class="btn btn-outline btn-block btn-cadastrar">Falar com Vendas</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <i class="fas fa-link"></i>
+                        <span>Encurta<span>Link</span></span>
+                    </div>
+                    <p>Encurte, analise e compartilhe links com inteligência.</p>
+                </div>
+                <div class="footer-links">
+                    <div>
+                        <h4>Produto</h4>
+                        <a href="#features">Recursos</a>
+                        <a href="#pricing">Preços</a>
+                        <a href="#">API</a>
+                    </div>
+                    <div>
+                        <h4>Empresa</h4>
+                        <a href="#">Sobre</a>
+                        <a href="#">Blog</a>
+                        <a href="#">Contato</a>
+                    </div>
+                    <div>
+                        <h4>Legal</h4>
+                        <a href="#">Privacidade</a>
+                        <a href="#">Termos</a>
+                        <a href="#">Cookies</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 EncurtaLink. Todos os direitos reservados.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========================================== -->
+    <!-- MODAL DE LOGIN / CADASTRO -->
+    <!-- ========================================== -->
+    <div class="modal-overlay" id="authModal">
+        <div class="modal">
+            <button class="modal-close" id="fecharModal">&times;</button>
+            
+            <div id="authLogin">
+                <h2>Entrar</h2>
+                <p class="subtitle">Acesse sua conta para gerenciar seus links</p>
+                
+                <div class="form-group">
+                    <label>E-mail</label>
+                    <input type="email" id="loginEmail" placeholder="seu@email.com" />
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <div class="password-toggle">
+                        <input type="password" id="loginSenha" placeholder="••••••••" />
+                        <button type="button" class="toggle-btn" onclick="toggleSenha('loginSenha', this)">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="error-msg" id="loginError"></div>
+                <div class="success-msg" id="loginSuccess"></div>
+                
+                <button class="btn btn-primary" id="btnLogin">
+                    <i class="fas fa-sign-in-alt"></i> Entrar
+                </button>
+                
+                <div class="divider">ou</div>
+                
+                <button class="btn btn-google" id="btnGoogle">
+                    <i class="fab fa-google"></i> Entrar com Google
+                </button>
+                
+                <div class="switch-auth">
+                    Não tem uma conta? <a id="switchToRegister">Criar conta grátis</a>
+                </div>
+            </div>
+
+            <div id="authRegister" style="display: none;">
+                <h2>Criar Conta</h2>
+                <p class="subtitle">Comece a encurtar seus links agora mesmo</p>
+                
+                <div class="form-group">
+                    <label>Nome</label>
+                    <input type="text" id="registerNome" placeholder="Seu nome" />
+                </div>
+                <div class="form-group">
+                    <label>E-mail</label>
+                    <input type="email" id="registerEmail" placeholder="seu@email.com" />
+                </div>
+                <div class="form-group">
+                    <label>Senha</label>
+                    <div class="password-toggle">
+                        <input type="password" id="registerSenha" placeholder="Mínimo 6 caracteres" />
+                        <button type="button" class="toggle-btn" onclick="toggleSenha('registerSenha', this)">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="error-msg" id="registerError"></div>
+                <div class="success-msg" id="registerSuccess"></div>
+                
+                <button class="btn btn-primary" id="btnRegister">
+                    <i class="fas fa-user-plus"></i> Criar Conta
+                </button>
+                
+                <div class="divider">ou</div>
+                
+                <button class="btn btn-google" id="btnGoogleRegister">
+                    <i class="fab fa-google"></i> Criar com Google
+                </button>
+                
+                <div class="switch-auth">
+                    Já tem uma conta? <a id="switchToLogin">Fazer login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- ========================================== -->
+    <!-- SCRIPTS -->
+    <!-- ========================================== -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            signInWithPopup,
+            GoogleAuthProvider,
+            updateProfile,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        
+        import { firebaseConfig } from './config.js';
+
+        // Inicializar
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        // Elementos
+        const modal = document.getElementById('authModal');
+        const loginDiv = document.getElementById('authLogin');
+        const registerDiv = document.getElementById('authRegister');
+        const btnAbrirLogin = document.getElementById('btnAbrirLogin');
+        const btnAbrirCadastro = document.getElementById('btnAbrirCadastro');
+        const btnFecharModal = document.getElementById('fecharModal');
+        const btnLogin = document.getElementById('btnLogin');
+        const btnRegister = document.getElementById('btnRegister');
+        const btnGoogle = document.getElementById('btnGoogle');
+        const btnGoogleRegister = document.getElementById('btnGoogleRegister');
+        const switchToRegister = document.getElementById('switchToRegister');
+        const switchToLogin = document.getElementById('switchToLogin');
+        const heroRegister = document.getElementById('heroRegister');
+        const loginEmail = document.getElementById('loginEmail');
+        const loginSenha = document.getElementById('loginSenha');
+        const registerNome = document.getElementById('registerNome');
+        const registerEmail = document.getElementById('registerEmail');
+        const registerSenha = document.getElementById('registerSenha');
+        const loginError = document.getElementById('loginError');
+        const loginSuccess = document.getElementById('loginSuccess');
+        const registerError = document.getElementById('registerError');
+        const registerSuccess = document.getElementById('registerSuccess');
+        const toast = document.getElementById('toast');
+
+        // ==========================================
+        // TOAST
+        // ==========================================
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.className = `toast ${type}`;
+            toast.style.display = 'block';
+            clearTimeout(toast.timeout);
+            toast.timeout = setTimeout(() => {
+                toast.style.display = 'none';
+            }, 4000);
+        }
+
+        // ==========================================
+        // TOGGLE SENHA
+        // ==========================================
+        window.toggleSenha = function(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                input.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        };
+
+        // ==========================================
+        // ABRIR/FECHAR MODAL
+        // ==========================================
+        function abrirModal(tipo = 'login') {
+            modal.classList.add('active');
+            if (tipo === 'register') {
+                loginDiv.style.display = 'none';
+                registerDiv.style.display = 'block';
+            } else {
+                loginDiv.style.display = 'block';
+                registerDiv.style.display = 'none';
+            }
+            loginError.classList.remove('show');
+            registerError.classList.remove('show');
+            loginSuccess.classList.remove('show');
+            registerSuccess.classList.remove('show');
+        }
+
+        function fecharModal() {
+            modal.classList.remove('active');
+        }
+
+        btnAbrirLogin.addEventListener('click', () => abrirModal('login'));
+        btnAbrirCadastro.addEventListener('click', () => abrirModal('register'));
+        heroRegister.addEventListener('click', () => abrirModal('register'));
+        btnFecharModal.addEventListener('click', fecharModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) fecharModal();
+        });
+
+        // ==========================================
+        // SWITCH ENTRE LOGIN E REGISTER
+        // ==========================================
+        switchToRegister.addEventListener('click', () => abrirModal('register'));
+        switchToLogin.addEventListener('click', () => abrirModal('login'));
+
+        document.querySelectorAll('.btn-cadastrar').forEach(btn => {
+            btn.addEventListener('click', () => abrirModal('register'));
+        });
+
+        // ==========================================
+        // LOGIN
+        // ==========================================
+        btnLogin.addEventListener('click', async () => {
+            const email = loginEmail.value.trim();
+            const senha = loginSenha.value;
+
+            if (!email || !senha) {
+                loginError.textContent = 'Preencha todos os campos';
+                loginError.classList.add('show');
+                return;
+            }
+
+            loginError.classList.remove('show');
+            loginSuccess.classList.remove('show');
+            btnLogin.disabled = true;
+            btnLogin.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Entrando...';
+
+            try {
+                await signInWithEmailAndPassword(auth, email, senha);
+                loginSuccess.textContent = 'Login realizado! Redirecionando...';
+                loginSuccess.classList.add('show');
+                setTimeout(() => {
+                    window.location.href = 'dashboard.html';
+                }, 1000);
+            } catch (error) {
+                loginError.textContent = error.message;
+                loginError.classList.add('show');
+                btnLogin.disabled = false;
+                btnLogin.innerHTML = '<i class="fas fa-sign-in-alt"></i> Entrar';
+            }
+        });
+
+        loginEmail.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnLogin.click(); });
+        loginSenha.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnLogin.click(); });
+
+        // ==========================================
+        // REGISTER
+        // ==========================================
+        btnRegister.addEventListener('click', async () => {
+            const nome = registerNome.value.trim();
+            const email = registerEmail.value.trim();
+            const senha = registerSenha.value;
+
+            if (!nome || !email || !senha) {
+                registerError.textContent = 'Preencha todos os campos';
+                registerError.classList.add('show');
+                return;
+            }
+
+            if (senha.length < 6) {
+                registerError.textContent = 'A senha deve ter pelo menos 6 caracteres';
+                registerError.classList.add('show');
+                return;
+            }
+
+            registerError.classList.remove('show');
+            registerSuccess.classList.remove('show');
+            btnRegister.disabled = true;
+            btnRegister.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Criando conta...';
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
+                await updateProfile(userCredential.user, { displayName: nome });
+                
+                registerSuccess.textContent = 'Conta criada com sucesso! Redirecionando...';
+                registerSuccess.classList.add('show');
+                
+                setTimeout(() => {
+                    window.location.href = 'dashboard.html';
+                }, 1000);
+            } catch (error) {
+                registerError.textContent = error.message;
+                registerError.classList.add('show');
+                btnRegister.disabled = false;
+                btnRegister.innerHTML = '<i class="fas fa-user-plus"></i> Criar Conta';
+            }
+        });
+
+        registerEmail.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnRegister.click(); });
+        registerSenha.addEventListener('keypress', (e) => { if (e.key === 'Enter') btnRegister.click(); });
+
+        // ==========================================
+        // GOOGLE LOGIN
+        // ==========================================
+        async function loginGoogle() {
+            try {
+                await signInWithPopup(auth, provider);
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                showToast('Erro ao fazer login com Google: ' + error.message, 'error');
+            }
+        }
+
+        btnGoogle.addEventListener('click', loginGoogle);
+        btnGoogleRegister.addEventListener('click', loginGoogle);
+
+        // ==========================================
+        // VERIFICAR AUTENTICAÇÃO
+        // ==========================================
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                window.location.href = 'dashboard.html';
+            }
+        });
+
+        // ==========================================
+        // MOCKUP COPY
+        // ==========================================
+        document.querySelector('.mockup-url button')?.addEventListener('click', function() {
+            const input = this.previousElementSibling;
+            navigator.clipboard.writeText(input.value);
+            this.innerHTML = '<i class="fas fa-check" style="color:#10b981"></i>';
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-copy"></i>';
+            }, 2000);
+        });
+
+        console.log('🚀 EncurtaLink carregado com sucesso!');
+        console.log('📧 Use suas credenciais do Firebase para testar.');
+    </script>
+</body>
+</html>
