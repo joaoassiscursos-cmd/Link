@@ -292,8 +292,8 @@
             background: var(--gray-900);
             border-radius: var(--radius);
             padding: 28px;
-            max-width: 700px;
-            width: 90%;
+            max-width: 950px;
+            width: 95%;
             border: 1px solid rgba(255,255,255,0.08);
             max-height: 85vh;
             overflow-y: auto;
@@ -306,6 +306,8 @@
             margin-bottom: 20px;
             border-bottom: 1px solid rgba(255,255,255,0.06);
             padding-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .analytics-table {
@@ -318,6 +320,7 @@
         .analytics-table th, .analytics-table td {
             padding: 10px 12px;
             border-bottom: 1px solid rgba(255,255,255,0.05);
+            white-space: nowrap;
         }
 
         .analytics-table th {
@@ -450,11 +453,21 @@
     <div class="modal-overlay" id="analyticsModal">
         <div class="modal-analytics">
             <div class="modal-analytics-header">
-                <h3 style="color: var(--white); font-size: 1.2rem;">Detalhes dos Cliques (<span id="modalCodigo"></span>)</h3>
-                <button id="fecharAnalytics" style="background: none; border: none; color: var(--gray-400); font-size: 1.4rem; cursor: pointer;">&times;</button>
+                <div>
+                    <h3 style="color: var(--white); font-size: 1.2rem;">Relatório Completo (<span id="modalCodigo"></span>)</h3>
+                    <span id="modalTotalCliques" style="font-size: 0.85rem; color: var(--gray-400);"></span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="btnExportarCsv" class="btn btn-outline" style="padding: 6px 14px; font-size: 0.85rem; border-radius: 8px;">
+                        <i class="fas fa-file-excel"></i> Baixar CSV
+                    </button>
+                    <button id="fecharAnalytics" style="background: none; border: none; color: var(--gray-400); font-size: 1.4rem; cursor: pointer;">&times;</button>
+                </div>
             </div>
-            <div id="analyticsContent">
-                <p style="text-align: center; color: var(--gray-600);">Carregando métricas...</p>
+            <div style="overflow-x: auto;">
+                <div id="analyticsContent">
+                    <p style="text-align: center; color: var(--gray-600);">Carregando métricas...</p>
+                </div>
             </div>
         </div>
     </div>
@@ -506,10 +519,13 @@
         const fecharAnalytics = document.getElementById('fecharAnalytics');
         const analyticsContent = document.getElementById('analyticsContent');
         const modalCodigo = document.getElementById('modalCodigo');
+        const modalTotalCliques = document.getElementById('modalTotalCliques');
+        const btnExportarCsv = document.getElementById('btnExportarCsv');
 
         let usuarioAtual = null;
         let links = [];
         let unsubscribeLinks = null;
+        let ultimosCliquesBuscados = [];
 
         function showToast(message, type = 'success') {
             toast.textContent = message;
@@ -698,7 +714,7 @@
                             </span>
                         </div>
                         <div class="link-actions">
-                            <button class="btn-stats" onclick="abrirAnalytics('${link.codigo}')" title="Ver Detalhes dos Cliques">
+                            <button class="btn-stats" onclick="abrirAnalytics('${link.codigo}')" title="Ver Relatório Detalhado">
                                 <i class="fas fa-chart-bar"></i>
                             </button>
                             <button class="btn-copy" onclick="copiarLink('${link.urlEncurtada}')" title="Copiar">
@@ -751,8 +767,9 @@
 
         window.abrirAnalytics = async function(codigo) {
             modalCodigo.textContent = codigo;
+            modalTotalCliques.textContent = '';
             analyticsModal.classList.add('active');
-            analyticsContent.innerHTML = '<p style="text-align: center; color: var(--gray-400); padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Buscando histórico de acessos...</p>';
+            analyticsContent.innerHTML = '<p style="text-align: center; color: var(--gray-400); padding: 30px;"><i class="fas fa-spinner fa-spin"></i> Buscando histórico detalhado de acessos...</p>';
 
             try {
                 const q = query(
@@ -762,22 +779,31 @@
                 const snap = await getDocs(q);
 
                 if (snap.empty) {
-                    analyticsContent.innerHTML = '<p style="text-align: center; color: var(--gray-400); padding: 30px;">Nenhum clique detalhado registrado ainda para este link.</p>';
+                    ultimosCliquesBuscados = [];
+                    analyticsContent.innerHTML = '<p style="text-align: center; color: var(--gray-400); padding: 30px;">Nenhum clique registrado ainda para este link.</p>';
                     return;
                 }
 
                 let lista = [];
                 snap.forEach(d => lista.push(d.data()));
                 lista.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                ultimosCliquesBuscados = lista;
+
+                modalTotalCliques.textContent = `${lista.length} clique(s) analisado(s)`;
 
                 let tableHtml = `
                     <table class="analytics-table">
                         <thead>
                             <tr>
-                                <th>Data/Hora</th>
+                                <th>Data / Hora</th>
+                                <th>Origem</th>
                                 <th>Localização</th>
-                                <th>Dispositivo</th>
+                                <th>Operadora / Provedor</th>
+                                <th>Dispositivo / SO</th>
                                 <th>Navegador</th>
+                                <th>Tela</th>
+                                <th>Idioma</th>
+                                <th>IP</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -785,14 +811,20 @@
 
                 lista.forEach(item => {
                     const d = item.timestamp?.toDate?.() || new Date();
-                    const dataStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const dataStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                     const local = `${item.cidade || '?'}${item.estado ? ' - ' + item.estado : ''}, ${item.pais || '?'}`;
+                    
                     tableHtml += `
                         <tr>
                             <td>${dataStr}</td>
+                            <td><strong style="color: var(--primary-light);">${item.origem || 'Direto'}</strong></td>
                             <td><i class="fas fa-map-marker-alt" style="color: #ef4444; margin-right: 4px;"></i>${local}</td>
+                            <td>${item.operadora || '-'}</td>
                             <td>${item.dispositivo || '-'} (${item.sistemaOperacional || '-'})</td>
                             <td>${item.navegador || '-'}</td>
+                            <td>${item.tela || '-'}</td>
+                            <td>${item.idioma || '-'}</td>
+                            <td><code>${item.ip || '-'}</code></td>
                         </tr>
                     `;
                 });
@@ -805,6 +837,45 @@
                 analyticsContent.innerHTML = '<p style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados de analytics.</p>';
             }
         };
+
+        btnExportarCsv.addEventListener('click', () => {
+            if (!ultimosCliquesBuscados.length) {
+                showToast('Não há cliques para exportar', 'error');
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Data/Hora;Origem;Cidade;Estado;Pais;Operadora;Dispositivo;SO;Navegador;Tela;Idioma;IP\r\n";
+
+            ultimosCliquesBuscados.forEach(item => {
+                const d = item.timestamp?.toDate?.() || new Date();
+                const dataStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR');
+                const row = [
+                    dataStr,
+                    item.origem || 'Direto',
+                    item.cidade || '',
+                    item.estado || '',
+                    item.pais || '',
+                    item.operadora || '',
+                    item.dispositivo || '',
+                    item.sistemaOperacional || '',
+                    item.navegador || '',
+                    item.tela || '',
+                    item.idioma || '',
+                    item.ip || ''
+                ].map(v => `"${(v + '').replace(/"/g, '""')}"`).join(';');
+
+                csvContent += row + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `metricas_${modalCodigo.textContent}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
 
         fecharAnalytics.addEventListener('click', () => analyticsModal.classList.remove('active'));
         analyticsModal.addEventListener('click', (e) => {
