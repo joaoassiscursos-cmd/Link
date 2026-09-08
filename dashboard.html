@@ -420,6 +420,12 @@
                         placeholder="Cole sua URL aqui (ex: https://meusite.com/promo)" 
                         required
                     />
+                    <input 
+                        type="text" 
+                        id="inputCustom" 
+                        placeholder="Final personalizado (opcional, ex: zap)" 
+                        style="max-width: 320px;"
+                    />
                     <button id="btnEncurtar" class="btn btn-primary">
                         <i class="fas fa-scissors"></i> Encurtar
                     </button>
@@ -484,6 +490,7 @@
         const db = getFirestore(app);
 
         const inputUrl = document.getElementById('inputUrl');
+        const inputCustom = document.getElementById('inputCustom');
         const btnEncurtar = document.getElementById('btnEncurtar');
         const linksContainer = document.getElementById('linksContainer');
         const totalLinksEl = document.getElementById('totalLinks');
@@ -525,6 +532,8 @@
 
         async function encurtarLink() {
             let url = inputUrl.value.trim();
+            let custom = inputCustom.value.trim();
+
             if (!url) {
                 showToast('Por favor, cole uma URL válida', 'error');
                 return;
@@ -538,21 +547,45 @@
                 btnEncurtar.disabled = true;
                 btnEncurtar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Encurtando...';
 
-                let codigo = generateShortCode(6);
-                let existe = true;
-                let tentativas = 0;
+                let codigo = '';
 
-                while (existe && tentativas < 5) {
+                if (custom) {
+                    codigo = custom.replace(/[^a-zA-Z0-9-_]/g, '');
+                    if (codigo.length < 2) {
+                        showToast('O código personalizado deve ter pelo menos 2 caracteres', 'error');
+                        btnEncurtar.disabled = false;
+                        btnEncurtar.innerHTML = '<i class="fas fa-scissors"></i> Encurtar';
+                        return;
+                    }
+
                     const q = query(
                         collection(db, 'links'),
                         where('codigo', '==', codigo)
                     );
                     const snapshot = await getDocs(q);
-                    if (snapshot.empty) {
-                        existe = false;
-                    } else {
-                        codigo = generateShortCode(7);
-                        tentativas++;
+                    if (!snapshot.empty) {
+                        showToast(`O nome "${codigo}" já está em uso. Escolha outro!`, 'error');
+                        btnEncurtar.disabled = false;
+                        btnEncurtar.innerHTML = '<i class="fas fa-scissors"></i> Encurtar';
+                        return;
+                    }
+                } else {
+                    codigo = generateShortCode(6);
+                    let existe = true;
+                    let tentativas = 0;
+
+                    while (existe && tentativas < 5) {
+                        const q = query(
+                            collection(db, 'links'),
+                            where('codigo', '==', codigo)
+                        );
+                        const snapshot = await getDocs(q);
+                        if (snapshot.empty) {
+                            existe = false;
+                        } else {
+                            codigo = generateShortCode(7);
+                            tentativas++;
+                        }
                     }
                 }
 
@@ -570,6 +603,7 @@
                 });
 
                 inputUrl.value = '';
+                inputCustom.value = '';
                 showToast('✅ Link encurtado com sucesso!');
                 
                 navigator.clipboard.writeText(urlEncurtada).then(() => {
@@ -779,6 +813,9 @@
 
         btnEncurtar.addEventListener('click', encurtarLink);
         inputUrl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') encurtarLink();
+        });
+        inputCustom.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') encurtarLink();
         });
 
