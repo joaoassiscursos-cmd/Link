@@ -242,6 +242,10 @@
             color: #ef4444;
         }
 
+        .link-actions .btn-stats:hover {
+            color: #3b82f6;
+        }
+
         .empty-state {
             padding: 60px 20px;
             text-align: center;
@@ -264,6 +268,65 @@
             font-size: 2rem;
             margin-bottom: 12px;
             color: var(--primary);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-analytics {
+            background: var(--gray-900);
+            border-radius: var(--radius);
+            padding: 28px;
+            max-width: 700px;
+            width: 90%;
+            border: 1px solid rgba(255,255,255,0.08);
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .modal-analytics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding-bottom: 14px;
+        }
+
+        .analytics-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+
+        .analytics-table th, .analytics-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .analytics-table th {
+            color: var(--primary-light);
+            font-weight: 600;
+        }
+
+        .analytics-table td {
+            color: var(--gray-200);
         }
 
         @media (max-width: 768px) {
@@ -378,6 +441,18 @@
         </div>
     </section>
 
+    <div class="modal-overlay" id="analyticsModal">
+        <div class="modal-analytics">
+            <div class="modal-analytics-header">
+                <h3 style="color: var(--white); font-size: 1.2rem;">Detalhes dos Cliques (<span id="modalCodigo"></span>)</h3>
+                <button id="fecharAnalytics" style="background: none; border: none; color: var(--gray-400); font-size: 1.4rem; cursor: pointer;">&times;</button>
+            </div>
+            <div id="analyticsContent">
+                <p style="text-align: center; color: var(--gray-600);">Carregando métricas...</p>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script type="module">
@@ -420,6 +495,10 @@
         const userEmail = document.getElementById('userEmail');
         const btnSair = document.getElementById('btnSair');
         const toast = document.getElementById('toast');
+        const analyticsModal = document.getElementById('analyticsModal');
+        const fecharAnalytics = document.getElementById('fecharAnalytics');
+        const analyticsContent = document.getElementById('analyticsContent');
+        const modalCodigo = document.getElementById('modalCodigo');
 
         let usuarioAtual = null;
         let links = [];
@@ -477,7 +556,7 @@
                     }
                 }
 
-                const urlEncurtada = `${window.location.origin}${window.location.pathname.replace('dashboard.html', '')}redirect.html?c=${codigo}`;
+                const urlEncurtada = `${window.location.origin}/${codigo}`;
                 
                 await addDoc(collection(db, 'links'), {
                     codigo: codigo,
@@ -585,6 +664,9 @@
                             </span>
                         </div>
                         <div class="link-actions">
+                            <button class="btn-stats" onclick="abrirAnalytics('${link.codigo}')" title="Ver Detalhes dos Cliques">
+                                <i class="fas fa-chart-bar"></i>
+                            </button>
                             <button class="btn-copy" onclick="copiarLink('${link.urlEncurtada}')" title="Copiar">
                                 <i class="fas fa-copy"></i>
                             </button>
@@ -611,7 +693,6 @@
             navigator.clipboard.writeText(url).then(() => {
                 showToast('📋 Link copiado!', 'success');
             }).catch(() => {
-                // Fallback
                 const input = document.createElement('input');
                 input.value = url;
                 document.body.appendChild(input);
@@ -633,6 +714,68 @@
                 showToast('❌ Erro ao excluir link', 'error');
             }
         };
+
+        window.abrirAnalytics = async function(codigo) {
+            modalCodigo.textContent = codigo;
+            analyticsModal.classList.add('active');
+            analyticsContent.innerHTML = '<p style="text-align: center; color: var(--gray-400); padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Buscando histórico de acessos...</p>';
+
+            try {
+                const q = query(
+                    collection(db, 'cliques'),
+                    where('codigo', '==', codigo)
+                );
+                const snap = await getDocs(q);
+
+                if (snap.empty) {
+                    analyticsContent.innerHTML = '<p style="text-align: center; color: var(--gray-400); padding: 30px;">Nenhum clique detalhado registrado ainda para este link.</p>';
+                    return;
+                }
+
+                let lista = [];
+                snap.forEach(d => lista.push(d.data()));
+                lista.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
+                let tableHtml = `
+                    <table class="analytics-table">
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Localização</th>
+                                <th>Dispositivo</th>
+                                <th>Navegador</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                lista.forEach(item => {
+                    const d = item.timestamp?.toDate?.() || new Date();
+                    const dataStr = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    const local = `${item.cidade || '?'}${item.estado ? ' - ' + item.estado : ''}, ${item.pais || '?'}`;
+                    tableHtml += `
+                        <tr>
+                            <td>${dataStr}</td>
+                            <td><i class="fas fa-map-marker-alt" style="color: #ef4444; margin-right: 4px;"></i>${local}</td>
+                            <td>${item.dispositivo || '-'} (${item.sistemaOperacional || '-'})</td>
+                            <td>${item.navegador || '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                tableHtml += '</tbody></table>';
+                analyticsContent.innerHTML = tableHtml;
+
+            } catch (e) {
+                console.error(e);
+                analyticsContent.innerHTML = '<p style="text-align: center; color: #ef4444; padding: 20px;">Erro ao carregar dados de analytics.</p>';
+            }
+        };
+
+        fecharAnalytics.addEventListener('click', () => analyticsModal.classList.remove('active'));
+        analyticsModal.addEventListener('click', (e) => {
+            if (e.target === analyticsModal) analyticsModal.classList.remove('active');
+        });
 
         btnEncurtar.addEventListener('click', encurtarLink);
         inputUrl.addEventListener('keypress', (e) => {
